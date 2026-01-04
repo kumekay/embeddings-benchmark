@@ -2,13 +2,15 @@ import time
 import requests
 import logging
 import argparse
+import os
 import tiktoken
 from datetime import datetime
 
 # Configuration
-OLLAMA_URL = "http://localhost:11434/api/embeddings"
-OLLAMA_TAGS_URL = "http://localhost:11434/api/tags"
-OLLAMA_PULL_URL = "http://localhost:11434/api/pull"
+OLLAMA_URL = str(os.getenv("OLLAMA_URL", "http://localhost:11434")).removesuffix("/")
+OLLAMA_EMBEDDINGS_URL = f"{OLLAMA_URL}/api/embeddings"
+OLLAMA_TAGS_URL = f"{OLLAMA_URL}/api/tags"
+OLLAMA_PULL_URL = f"{OLLAMA_URL}/api/pull"
 MODELS = ["qwen3-embedding:0.6b", "embeddinggemma:300m", "nomic-embed-text"]
 # A dummy "Code" payload to test heavy load
 PAYLOAD_TEXT = (
@@ -150,7 +152,9 @@ def benchmark_model(model_name, token_count=0):
 
     # 1. Warmup (load model into RAM/VRAM)
     try:
-        requests.post(OLLAMA_URL, json={"model": model_name, "prompt": "warmup"})
+        requests.post(
+            OLLAMA_EMBEDDINGS_URL, json={"model": model_name, "prompt": "warmup"}
+        )
     except Exception as e:
         logging.error(f"Failed to load {model_name}: {e}")
         return
@@ -160,7 +164,7 @@ def benchmark_model(model_name, token_count=0):
     for i in range(30):
         start = time.time()
         response = requests.post(
-            OLLAMA_URL,
+            OLLAMA_EMBEDDINGS_URL,
             json={
                 "model": model_name,
                 "prompt": PAYLOAD_TEXT,
