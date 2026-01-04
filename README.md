@@ -1,5 +1,24 @@
 # Computation benchmark for embeddings models
 
+A simple tool to check how fast are different embeddings models are on your machine. You will need [Ollama](https://ollama.com/) installed.
+
+The script uses the following default models:
+- qwen3-embedding:0.6b
+- embeddinggemma:300m
+- nomic-embed-text
+
+You can customize the Ollama server URL by setting the `OLLAMA_URL` environment variable (default: http://localhost:11434).
+
+### Benchmark Details
+
+The benchmark performs the following steps for each model:
+1. Warmup: Loads the model into RAM/VRAM
+2. Performance test: Runs 30 iterations with a code payload
+3. Reports average latency and throughput (tokens/second)
+
+The test payload is a Python quicksort implementation with documentation, providing a realistic code snippet for embedding testing.
+
+
 ## Usage
 
 Run the benchmark with:
@@ -42,21 +61,3 @@ uv run python main.py -d 2 -f custom_results.txt -m nomic-embed-text
 # Show help
 uv run python main.py --help
 ```
-
-### Configuration
-
-The script uses the following default models:
-- qwen3-embedding:0.6b
-- embeddinggemma:300m
-- nomic-embed-text
-
-You can customize the Ollama server URL by setting the `OLLAMA_URL` environment variable (default: http://localhost:11434).
-
-### Benchmark Details
-
-The benchmark performs the following steps for each model:
-1. Warmup: Loads the model into RAM/VRAM
-2. Performance test: Runs 30 iterations with a code payload
-3. Reports average latency and throughput (tokens/second)
-
-The test payload is a Python quicksort implementation with documentation, providing a realistic code snippet for embedding testing.
