@@ -2,6 +2,7 @@ import time
 import requests
 import logging
 import argparse
+import tiktoken
 from datetime import datetime
 
 # Configuration
@@ -35,7 +36,17 @@ def setup_logging(output_file=None):
     )
 
 
-def benchmark_model(model_name):
+def get_token_count(text):
+    """Get approximate token count using tiktoken"""
+    try:
+        encoding = tiktoken.get_encoding("cl100k_base")
+        return len(encoding.encode(text))
+    except Exception as e:
+        logging.warning(f"Could not use tiktoken: {e}, using word count estimate")
+        return int(len(text.split()) * 1.3)
+
+
+def benchmark_model(model_name, token_count=0):
     logging.info(f"--- Benchmarking: {model_name} ---")
 
     # 1. Warmup (load model into RAM/VRAM)
@@ -66,12 +77,13 @@ def benchmark_model(model_name):
 
     # 3. Calculate Stats
     avg_time = sum(durations) / len(durations)
-    # Rough token count estimate (words * 1.3)
-    est_tokens = len(PAYLOAD_TEXT.split()) * 1.3
-    tps = est_tokens / avg_time
 
     logging.info(f"Average Latency: {avg_time:.4f} seconds")
-    logging.info(f"Est. Throughput: {tps:.2f} tokens/sec")
+
+    if token_count > 0:
+        tps = token_count / avg_time
+        logging.info(f"Throughput: {tps:.2f} tokens/sec")
+
     logging.info(f"-----------------------------------")
 
 
@@ -88,6 +100,10 @@ if __name__ == "__main__":
 
     logging.info(f"Starting embedding model benchmark at {datetime.now()}")
     logging.info(f"Models to test: {MODELS}")
+    # Get accurate token count
+    token_count = get_token_count(PAYLOAD_TEXT)
+    logging.info(f"Token count: {token_count:.0f}")
+
     if args.file:
         logging.info(f"Results will be saved to: {args.file}")
     else:
@@ -95,6 +111,6 @@ if __name__ == "__main__":
     logging.info("=" * 50)
 
     for model in MODELS:
-        benchmark_model(model)
+        benchmark_model(model, token_count)
 
     logging.info("Benchmark completed")
