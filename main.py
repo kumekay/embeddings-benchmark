@@ -1,14 +1,13 @@
 import time
 import requests
-import json
 import logging
+import argparse
 from datetime import datetime
 
 # Configuration
 OLLAMA_URL = "http://localhost:11434/api/embeddings"
 MODELS = ["qwen3-embedding:0.6b", "qwen3-embedding:4b", "nomic-embed-text"]
-
-# A dummy "Code" payload (approx 500 tokens) to test heavy load
+# A dummy "Code" payload to test heavy load
 PAYLOAD_TEXT = (
     """
 def quicksort(arr):
@@ -23,12 +22,17 @@ def quicksort(arr):
 )  # Multiply to increase payload size
 
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(message)s",
-    handlers=[logging.FileHandler("log_benchmark.txt"), logging.StreamHandler()],
-)
+def setup_logging(output_file=None):
+    """Setup logging with optional file output"""
+    handlers: list[logging.Handler] = [logging.StreamHandler()]  # type: ignore
+    if output_file:
+        handlers.append(logging.FileHandler(output_file))
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(message)s",
+        handlers=handlers,
+    )
 
 
 def benchmark_model(model_name):
@@ -72,8 +76,22 @@ def benchmark_model(model_name):
 
 
 if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Benchmark embedding models")
+    parser.add_argument(
+        "-f", "--file", type=str, help="Output file for logging results"
+    )
+    args = parser.parse_args()
+
+    # Setup logging with optional file output
+    setup_logging(args.file)
+
     logging.info(f"Starting embedding model benchmark at {datetime.now()}")
     logging.info(f"Models to test: {MODELS}")
+    if args.file:
+        logging.info(f"Results will be saved to: {args.file}")
+    else:
+        logging.info("Results will only be displayed (no file output)")
     logging.info("=" * 50)
 
     for model in MODELS:

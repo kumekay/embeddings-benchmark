@@ -14,3 +14,7 @@ log_*.txt
 
 # Version management
 .python-version
+
+# UV lock file
+uv.lock
+
