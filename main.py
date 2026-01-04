@@ -196,16 +196,26 @@ if __name__ == "__main__":
     parser.add_argument(
         "-f", "--file", type=str, help="Output file for logging results"
     )
+    parser.add_argument(
+        "-m",
+        "--model",
+        action="append",
+        dest="models",
+        help="Model to test (can be repeated multiple times to test multiple models)",
+    )
     args = parser.parse_args()
 
     # Setup logging with optional file output
     setup_logging(args.file)
 
+    # Use custom models if provided, otherwise use defaults
+    models_to_test = args.models if args.models else MODELS
+
     logging.info(f"Starting embedding model benchmark at {datetime.now()}")
-    logging.info(f"Models to test: {normalize_model_list(MODELS)}")
+    logging.info(f"Models to test: {normalize_model_list(models_to_test)}")
 
     logging.info("Checking model availability...")
-    available_models = ensure_models_available(MODELS.copy())
+    available_models = ensure_models_available(models_to_test.copy())
 
     if not available_models:
         logging.error("No models available for benchmarking")
