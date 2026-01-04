@@ -7,7 +7,9 @@ from datetime import datetime
 
 # Configuration
 OLLAMA_URL = "http://localhost:11434/api/embeddings"
-MODELS = ["qwen3-embedding:0.6b", "qwen3-embedding:4b", "nomic-embed-text"]
+OLLAMA_TAGS_URL = "http://localhost:11434/api/tags"
+OLLAMA_PULL_URL = "http://localhost:11434/api/pull"
+MODELS = ["qwen3-embedding:0.6b", "embeddinggemma:300m", "nomic-embed-text"]
 # A dummy "Code" payload to test heavy load
 PAYLOAD_TEXT = (
     """
@@ -34,6 +36,103 @@ def setup_logging(output_file=None):
         format="%(asctime)s - %(message)s",
         handlers=handlers,
     )
+
+
+def normalize_model_name(model_name):
+    """Ensure model name has a tag, append :latest if missing"""
+    if ":" not in model_name:
+        return f"{model_name}:latest"
+    return model_name
+
+
+def normalize_model_list(models):
+    """Normalize all model names in a list"""
+    return [normalize_model_name(model) for model in models]
+
+
+def get_available_models():
+    """Get list of available models from Ollama"""
+    try:
+        response = requests.get(OLLAMA_TAGS_URL)
+        if response.status_code == 200:
+            models_data = response.json()
+            return [model["name"] for model in models_data.get("models", [])]
+        else:
+            logging.error(f"Failed to get models: {response.text}")
+            return []
+    except Exception as e:
+        logging.error(f"Error getting available models: {e}")
+        return []
+
+
+def pull_model(model_name):
+    """Pull a model from Ollama registry"""
+    logging.info(f"Pulling model: {model_name}")
+    try:
+        response = requests.post(
+            OLLAMA_PULL_URL, json={"name": model_name}, stream=True
+        )
+
+        if response.status_code == 200:
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        data = line.decode("utf-8")
+                        if data.strip():
+                            logging.info(f"Pull progress: {data}")
+                    except Exception:
+                        pass
+            logging.info(f"Successfully pulled model: {model_name}")
+            return True
+        else:
+            logging.error(f"Failed to pull {model_name}: {response.text}")
+            return False
+    except Exception as e:
+        logging.error(f"Error pulling model {model_name}: {e}")
+        return False
+
+
+def ensure_models_available(models):
+    """Check if models are available and pull missing ones"""
+    # Normalize model names first
+    normalized_models = normalize_model_list(models)
+    original_to_normalized = dict(zip(models, normalized_models))
+
+    available_models = get_available_models()
+    logging.info(f"Available models: {available_models}")
+
+    # Check for missing models using normalized names
+    missing_models = [
+        (original, normalized)
+        for original, normalized in original_to_normalized.items()
+        if normalized not in available_models
+    ]
+
+    if missing_models:
+        missing_normalized = [normalized for _, normalized in missing_models]
+        logging.info(f"Missing models: {missing_normalized}")
+
+        # Pull missing models and track successes
+        successful_models = []
+        for original, normalized in missing_models:
+            if pull_model(normalized):
+                successful_models.append(normalized)
+            else:
+                logging.error(
+                    f"Failed to pull model {normalized}, skipping benchmark for this model"
+                )
+
+        # Update the models list with successfully available ones
+        final_models = [
+            normalized
+            for normalized in normalized_models
+            if normalized in available_models or normalized in successful_models
+        ]
+    else:
+        logging.info("All required models are available")
+        final_models = normalized_models
+
+    return final_models
 
 
 def get_token_count(text):
@@ -99,7 +198,15 @@ if __name__ == "__main__":
     setup_logging(args.file)
 
     logging.info(f"Starting embedding model benchmark at {datetime.now()}")
-    logging.info(f"Models to test: {MODELS}")
+    logging.info(f"Models to test: {normalize_model_list(MODELS)}")
+
+    logging.info("Checking model availability...")
+    available_models = ensure_models_available(MODELS.copy())
+
+    if not available_models:
+        logging.error("No models available for benchmarking")
+        exit(1)
+
     # Get accurate token count
     token_count = get_token_count(PAYLOAD_TEXT)
     logging.info(f"Token count: {token_count:.0f}")
@@ -110,7 +217,7 @@ if __name__ == "__main__":
         logging.info("Results will only be displayed (no file output)")
     logging.info("=" * 50)
 
-    for model in MODELS:
+    for model in available_models:
         benchmark_model(model, token_count)
 
     logging.info("Benchmark completed")
